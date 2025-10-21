@@ -95,8 +95,8 @@ jobs:
         run: |
           test -f test-simple.att || { echo "ERROR: Attestation not created"; exit 1; }
 
-          # Check step name
-          STEP=$(jq -r '.payload' test-simple.att | base64 -d | jq -r '.predicate.step')
+          # Check step name (stored in .predicate.name, not .predicate.step)
+          STEP=$(jq -r '.payload' test-simple.att | base64 -d | jq -r '.predicate.name')
           if [ "$STEP" != "simple-command" ]; then
             echo "ERROR: Step mismatch. Expected 'simple-command', got '$STEP'"
             exit 1
