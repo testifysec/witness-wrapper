@@ -58,13 +58,15 @@ jobs:
       - name: Build action
         run: npm run build
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
       - name: Install witness
         run: |
-          # Use a specific known version
-          WITNESS_VERSION="v0.8.2"
-          curl -sLo witness "https://github.com/in-toto/go-witness/releases/download/${WITNESS_VERSION}/witness_${WITNESS_VERSION#v}_linux_amd64"
-          chmod +x witness
-          sudo mv witness /usr/local/bin/witness
+          # Install witness using go install (binaries no longer published after v0.1.x)
+          go install github.com/in-toto/go-witness/cmd/witness@latest
           witness version
 
       - name: Generate signing key
@@ -257,13 +259,15 @@ jobs:
       - name: Build action
         run: npm run build
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
       - name: Install witness
         run: |
-          # Use a specific known version
-          WITNESS_VERSION="v0.8.2"
-          curl -sLo witness "https://github.com/in-toto/go-witness/releases/download/${WITNESS_VERSION}/witness_${WITNESS_VERSION#v}_linux_amd64"
-          chmod +x witness
-          sudo mv witness /usr/local/bin/witness
+          # Install witness using go install (binaries no longer published after v0.1.x)
+          go install github.com/in-toto/go-witness/cmd/witness@latest
           witness version
 
       - name: Generate signing key
