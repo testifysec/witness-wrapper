@@ -59,9 +59,12 @@ jobs:
         run: npm run build
 
       - name: Install witness
-        uses: testifysec/witness-install-action@v0.1.15
-        with:
-          version: latest
+        run: |
+          WITNESS_VERSION=$(curl -s https://api.github.com/repos/in-toto/go-witness/releases/latest | jq -r '.tag_name')
+          curl -sLo witness "https://github.com/in-toto/go-witness/releases/download/${WITNESS_VERSION}/witness_${WITNESS_VERSION#v}_linux_amd64"
+          chmod +x witness
+          sudo mv witness /usr/local/bin/witness
+          witness version
 
       - name: Generate signing key
         run: |
@@ -254,9 +257,12 @@ jobs:
         run: npm run build
 
       - name: Install witness
-        uses: testifysec/witness-install-action@v0.1.15
-        with:
-          version: latest
+        run: |
+          WITNESS_VERSION=$(curl -s https://api.github.com/repos/in-toto/go-witness/releases/latest | jq -r '.tag_name')
+          curl -sLo witness "https://github.com/in-toto/go-witness/releases/download/${WITNESS_VERSION}/witness_${WITNESS_VERSION#v}_linux_amd64"
+          chmod +x witness
+          sudo mv witness /usr/local/bin/witness
+          witness version
 
       - name: Generate signing key
         run: |
