@@ -12,9 +12,8 @@ inputs:
     description: "Name of the step being run"
     required: true
   witness_version:
-    description: "Version of Witness CLI"
+    description: "Version of Witness CLI (defaults to latest if not specified)"
     required: false
-    default: "0.8.1"
   witness-args:
     description: "Additional command-line arguments to pass to Witness (space-separated). Useful for undocumented or future options not yet supported explicitly by this action."
     required: false
