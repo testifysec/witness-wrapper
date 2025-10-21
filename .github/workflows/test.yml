@@ -317,6 +317,7 @@ jobs:
           witness verify \
             --policy test-policy-signed.json \
             --publickey "${PUBKEY_PATH}" \
+            --artifactfile build/app.js \
             --attestations build.att
 
           echo "✅ Policy validation passed"
