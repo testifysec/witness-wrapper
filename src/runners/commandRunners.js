@@ -115,9 +115,27 @@ async function runActionWithWitness(actionDir, witnessOptions, witnessExePath, a
  * Runs a direct command using witness.
  */
 async function runDirectCommandWithWitness(command, witnessOptions, witnessExePath) {
-  const commandArray = command.match(/(?:[^\s"]+|"[^"]*")+/g) || [command];
+  // Always use shell execution to preserve all shell features:
+  // - Multi-line commands
+  // - Pipes (|), redirects (>, <, >>)
+  // - Logical operators (&&, ||)
+  // - Variable expansion ($VAR, ${VAR})
+  // - Command substitution ($(cmd), `cmd`)
+  // - Exit codes from failing commands
+  const commandArray = ['/bin/sh', '-c', command];
   const args = assembleWitnessArgs(witnessOptions, commandArray);
-  // Command details not logged to protect secrets
+
+  // DEBUG: Log the actual witness command being executed
+  core.info('========== WITNESS COMMAND DEBUG ==========');
+  core.info(`Witness executable: ${witnessExePath}`);
+  core.info(`Witness options (step): ${witnessOptions.step}`);
+  core.info(`Witness options (outfile): ${witnessOptions.outfile}`);
+  core.info(`Complete args array (${args.length} elements):`);
+  args.forEach((arg, idx) => {
+    core.info(`  [${idx}]: ${arg}`);
+  });
+  core.info(`Full command as string: ${witnessExePath} ${args.join(' ')}`);
+  core.info('============================================');
 
   let output = "";
   await exec.exec(witnessExePath, args, {

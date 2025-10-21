@@ -1,0 +1,352 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build action
+        run: npm run build
+
+      - name: Check for uncommitted changes
+        run: |
+          if [ -n "$(git status --porcelain dist/)" ]; then
+            echo "ERROR: Uncommitted changes in dist/"
+            echo "Please run 'npm run build' and commit the changes"
+            git status --porcelain dist/
+            exit 1
+          fi
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build action
+        run: npm run build
+
+      - name: Install witness
+        run: |
+          # Download official latest release from GitHub
+          LATEST_VERSION=$(curl -s https://api.github.com/repos/in-toto/witness/releases/latest | jq -r .tag_name)
+          VERSION_NO_V=${LATEST_VERSION#v}  # Strip 'v' prefix
+          echo "Installing witness ${LATEST_VERSION}"
+
+          # Download the binary for linux/amd64
+          curl -LO "https://github.com/in-toto/witness/releases/download/${LATEST_VERSION}/witness_${VERSION_NO_V}_linux_amd64.tar.gz"
+          tar -xzf "witness_${VERSION_NO_V}_linux_amd64.tar.gz"
+          chmod +x witness
+          sudo mv witness /usr/local/bin/
+
+          # Verify installation
+          witness version
+
+      - name: Generate signing key
+        run: |
+          openssl genrsa -out testkey.pem 2048 2>/dev/null
+          echo "KEY_PATH=$(pwd)/testkey.pem" >> $GITHUB_ENV
+
+      # Test 1: Simple command execution
+      - name: Test simple command
+        uses: ./
+        with:
+          step: simple-command
+          attestations: command-run
+          enable-archivista: false
+          enable-sigstore: false
+          key: ${{ env.KEY_PATH }}
+          outfile: test-simple.att
+          command: echo "Hello from witness-wrapper"
+
+      - name: Verify simple command attestation
+        run: |
+          test -f test-simple.att || { echo "ERROR: Attestation not created"; exit 1; }
+
+          # Check step name (stored in .predicate.name, not .predicate.step)
+          STEP=$(jq -r '.payload' test-simple.att | base64 -d | jq -r '.predicate.name')
+          if [ "$STEP" != "simple-command" ]; then
+            echo "ERROR: Step mismatch. Expected 'simple-command', got '$STEP'"
+            exit 1
+          fi
+
+          # Check exit code
+          EXITCODE=$(jq -r '.payload' test-simple.att | base64 -d | jq '.predicate.attestations[] | select(.type | contains("command-run")) | .attestation.exitcode')
+          if [ "$EXITCODE" != "0" ]; then
+            echo "ERROR: Exit code mismatch. Expected 0, got $EXITCODE"
+            exit 1
+          fi
+
+          echo "✅ Simple command test passed"
+
+      # Test 2: Multi-line command
+      - name: Test multi-line command
+        uses: ./
+        with:
+          step: multi-line-command
+          attestations: command-run
+          enable-archivista: false
+          enable-sigstore: false
+          key: ${{ env.KEY_PATH }}
+          outfile: test-multiline.att
+          command: |
+            echo "Line 1"
+            echo "Line 2"
+            echo "Line 3"
+
+      - name: Verify multi-line command
+        run: |
+          # Check command array format
+          CMD=$(jq -r '.payload' test-multiline.att | base64 -d | jq '.predicate.attestations[] | select(.type | contains("command-run")) | .attestation.cmd')
+
+          # Should be ["/bin/sh", "-c", "..."]
+          FIRST_ARG=$(echo "$CMD" | jq -r '.[0]')
+          SECOND_ARG=$(echo "$CMD" | jq -r '.[1]')
+
+          if [ "$FIRST_ARG" != "/bin/sh" ]; then
+            echo "ERROR: Expected /bin/sh, got $FIRST_ARG"
+            exit 1
+          fi
+
+          if [ "$SECOND_ARG" != "-c" ]; then
+            echo "ERROR: Expected -c, got $SECOND_ARG"
+            exit 1
+          fi
+
+          echo "✅ Multi-line command test passed"
+
+      # Test 3: Command with pipes and redirects
+      - name: Test shell features
+        uses: ./
+        with:
+          step: shell-features
+          attestations: command-run,product
+          enable-archivista: false
+          enable-sigstore: false
+          key: ${{ env.KEY_PATH }}
+          outfile: test-shell.att
+          command: |
+            echo "test content" > test-file.txt
+            cat test-file.txt | grep "test" >> test-output.txt
+            echo "File created: $(ls -l test-output.txt | awk '{print $5}') bytes"
+
+      - name: Verify shell features
+        run: |
+          # Check that files were created
+          test -f test-file.txt || { echo "ERROR: test-file.txt not created"; exit 1; }
+          test -f test-output.txt || { echo "ERROR: test-output.txt not created"; exit 1; }
+
+          # Check product attestation captured the files
+          PRODUCT_COUNT=$(jq -r '.payload' test-shell.att | base64 -d | jq '.predicate.attestations[] | select(.type | contains("product")) | .attestation | length')
+
+          if [ "$PRODUCT_COUNT" -lt "2" ]; then
+            echo "ERROR: Expected at least 2 files in product, got $PRODUCT_COUNT"
+            exit 1
+          fi
+
+          echo "✅ Shell features test passed"
+
+      # Test 4: Command with variable expansion
+      - name: Test variable expansion
+        env:
+          TEST_VAR: "test-value-123"
+        uses: ./
+        with:
+          step: variable-expansion
+          attestations: command-run,environment
+          enable-archivista: false
+          enable-sigstore: false
+          key: ${{ env.KEY_PATH }}
+          outfile: test-vars.att
+          command: |
+            echo "Variable value: $TEST_VAR"
+            echo "Result: ${TEST_VAR}-suffix"
+
+      - name: Verify variable expansion
+        run: |
+          # Check stdout contains the expanded variable
+          STDOUT=$(jq -r '.payload' test-vars.att | base64 -d | jq -r '.predicate.attestations[] | select(.type | contains("command-run")) | .attestation.stdout')
+
+          if ! echo "$STDOUT" | grep -q "test-value-123"; then
+            echo "ERROR: Variable not expanded correctly"
+            echo "STDOUT: $STDOUT"
+            exit 1
+          fi
+
+          echo "✅ Variable expansion test passed"
+
+      # NOTE: Test for failing commands removed - witness CLI doesn't create
+      # attestation files when wrapped commands fail (exit code != 0).
+      # See CLAUDE.md "Witness CLI Doesn't Create Attestations on Failure" for details.
+
+      - name: Upload test attestations
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-attestations
+          path: "test-*.att"
+
+  policy-validation:
+    name: Policy Validation Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build action
+        run: npm run build
+
+      - name: Install witness
+        run: |
+          # Download official latest release from GitHub
+          LATEST_VERSION=$(curl -s https://api.github.com/repos/in-toto/witness/releases/latest | jq -r .tag_name)
+          VERSION_NO_V=${LATEST_VERSION#v}  # Strip 'v' prefix
+          echo "Installing witness ${LATEST_VERSION}"
+
+          # Download the binary for linux/amd64
+          curl -LO "https://github.com/in-toto/witness/releases/download/${LATEST_VERSION}/witness_${VERSION_NO_V}_linux_amd64.tar.gz"
+          tar -xzf "witness_${VERSION_NO_V}_linux_amd64.tar.gz"
+          chmod +x witness
+          sudo mv witness /usr/local/bin/
+
+          # Verify installation
+          witness version
+
+      - name: Generate signing key
+        run: |
+          openssl genrsa -out policykey.pem 2048 2>/dev/null
+          openssl rsa -in policykey.pem -pubout -out policykey-pub.pem
+          echo "KEY_PATH=$(pwd)/policykey.pem" >> $GITHUB_ENV
+          echo "PUBKEY_PATH=$(pwd)/policykey-pub.pem" >> $GITHUB_ENV
+
+      # Create a simple build workflow
+      - name: Build with attestations
+        uses: ./
+        with:
+          step: build
+          attestations: command-run,environment,product
+          enable-archivista: false
+          enable-sigstore: false
+          key: ${{ env.KEY_PATH }}
+          outfile: build.att
+          command: |
+            mkdir -p build
+            echo "console.log('Hello');" > build/app.js
+            echo "Build complete"
+
+      - name: Create test policy
+        run: |
+          # Extract the actual key ID from the attestation
+          KEYID=$(jq -r '.signatures[0].keyid' build.att)
+          echo "Attestation signed with key ID: $KEYID"
+
+          # Base64 encode the public key for policy
+          PUBKEY_B64=$(cat "${PUBKEY_PATH}" | base64 -w 0)
+
+          # Create policy with correct key ID and attestation order
+          cat > test-policy.json << EOF
+          {
+            "expires": "2030-12-31T23:59:59Z",
+            "steps": {
+              "build": {
+                "name": "build",
+                "attestations": [
+                  {
+                    "type": "https://witness.dev/attestations/material/v0.1"
+                  },
+                  {
+                    "type": "https://witness.dev/attestations/command-run/v0.1"
+                  },
+                  {
+                    "type": "https://witness.dev/attestations/product/v0.1"
+                  },
+                  {
+                    "type": "https://witness.dev/attestations/environment/v0.1"
+                  }
+                ],
+                "functionaries": [
+                  {
+                    "type": "publickey",
+                    "publickeyid": "$KEYID"
+                  }
+                ]
+              }
+            },
+            "publickeys": {
+              "$KEYID": {
+                "keyid": "$KEYID",
+                "key": "$PUBKEY_B64"
+              }
+            }
+          }
+          EOF
+
+          echo "Created policy with key ID: $KEYID"
+          cat test-policy.json | jq .
+
+      - name: Sign policy
+        run: |
+          witness sign -f test-policy.json \
+            --signer-file-key-path="${KEY_PATH}" \
+            --outfile test-policy-signed.json
+
+      - name: Verify attestation against policy
+        run: |
+          witness verify \
+            --policy test-policy-signed.json \
+            --publickey "${PUBKEY_PATH}" \
+            --artifactfile build/app.js \
+            --attestations build.att
+
+          echo "✅ Policy validation passed"
+
+      - name: Upload policy artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: policy-artifacts
+          path: |
+            test-policy.json
+            test-policy-signed.json
+            build.att

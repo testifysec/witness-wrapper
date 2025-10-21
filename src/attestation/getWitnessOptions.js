@@ -29,6 +29,12 @@ function getBooleanInput(name, defaultValue = false) {
 function getWitnessOptions() {
   let outfile = core.getInput("outfile");
   const step = core.getInput("step");
+
+  // Validate that step is provided (it's marked as required in action.yml)
+  if (!step || step.trim().length === 0) {
+    throw new Error("The 'step' input is required but was not provided or is empty");
+  }
+
   outfile = outfile ? outfile : path.join(os.tmpdir(), `${step}-attestation.json`);
   
   // Split space-separated values into arrays, handling empty strings
