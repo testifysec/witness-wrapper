@@ -109,6 +109,37 @@ const args = command.split(' ');
 const commandArray = ['/bin/sh', '-c', command];
 ```
 
+### 4. Witness CLI Doesn't Create Attestations on Failure (2025-10-21)
+
+**CRITICAL**: Witness CLI does NOT create attestation files when the wrapped command fails, even though it runs through all attestor stages (material, execute, product, postproduct).
+
+**Observed Behavior**:
+```bash
+witness run -s test-fail -a command-run --signer-file-key-path=key.pem -o=fail.att -- sh -c 'exit 42'
+# All attestor stages complete
+# level=error msg="attestors failed with error messages\nexit status 42"
+# Witness exits with code 1
+# NO attestation file is created
+
+ls fail.att
+# File does not exist
+```
+
+**Why This Matters**:
+- You CANNOT capture forensics for failed builds
+- Exit codes are lost (not recorded in any attestation)
+- Material/product snapshots are discarded
+- No audit trail for failures
+
+**Workaround**: Currently none. This is a witness CLI limitation.
+
+**Feature Request**: File an issue with witness project to add a flag like `--attest-on-failure` to write attestations even when commands fail. This would be valuable for:
+- Security auditing (what failed and why?)
+- Debugging failed builds
+- Compliance requirements (capture all build attempts)
+
+**Testing Implication**: Do NOT write tests that expect attestation files when commands fail. The wrapper correctly passes the exit code from witness (exit 1), but no attestation file will be created.
+
 ## Testing Witness Attestations Locally
 
 ### Quick Test Script
