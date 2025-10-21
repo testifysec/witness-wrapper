@@ -60,9 +60,6 @@ jobs:
 
       - name: Install witness
         run: |
-          # Clear any cached witness from tool cache
-          rm -rf /opt/hostedtoolcache/witness || true
-
           # Download official latest release from GitHub
           LATEST_VERSION=$(curl -s https://api.github.com/repos/in-toto/witness/releases/latest | jq -r .tag_name)
           VERSION_NO_V=${LATEST_VERSION#v}  # Strip 'v' prefix
@@ -269,9 +266,6 @@ jobs:
 
       - name: Install witness
         run: |
-          # Clear any cached witness from tool cache
-          rm -rf /opt/hostedtoolcache/witness || true
-
           # Download official latest release from GitHub
           LATEST_VERSION=$(curl -s https://api.github.com/repos/in-toto/witness/releases/latest | jq -r .tag_name)
           VERSION_NO_V=${LATEST_VERSION#v}  # Strip 'v' prefix

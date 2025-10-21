@@ -35965,34 +35965,68 @@ module.exports = {
 /**
  * Functionality for downloading and setting up the witness binary
  * Uses GitHub Actions Tool Cache for efficient reuse
+ *
+ * Version Priority:
+ * 1. Check if witness exists in PATH
+ * 2. Check tool cache for specified version
+ * 3. Download specified version OR latest version
  */
 const core = __nccwpck_require__(7484);
 const fs = __nccwpck_require__(9896);
 const path = __nccwpck_require__(6928);
 const tc = __nccwpck_require__(3472);
+const exec = __nccwpck_require__(5236);
 const os = __nccwpck_require__(857);
 
 /**
- * Downloads and sets up the witness binary.
- * Checks for a cached version first; if not found, downloads, extracts, caches, and returns its path.
- * Returns the full path to the witness executable, not just the directory.
+ * Checks if witness is available in the system PATH
+ * @returns {Promise<string|null>} Path to witness executable or null
  */
-async function downloadAndSetupWitness() {
-  const version = core.getInput("witness_version") || "0.8.1";
-  core.info(`Setting up Witness version ${version}`);
+async function checkWitnessInPath() {
+  try {
+    const result = await exec.getExecOutput('which', ['witness'], {
+      silent: true,
+      ignoreReturnCode: true
+    });
 
-  // Check cache first
-  let cachedPath = tc.find("witness", version);
-  if (cachedPath) {
-    const witnessExePath = path.join(cachedPath, "witness");
-    core.info(`✅ Found cached Witness at: ${witnessExePath}`);
-    core.addPath(cachedPath);
-    return witnessExePath;  // Return the full path to the executable
+    if (result.exitCode === 0 && result.stdout.trim()) {
+      return result.stdout.trim();
+    }
+    return null;
+  } catch (error) {
+    core.debug(`Error checking for witness in PATH: ${error.message}`);
+    return null;
   }
+}
 
-  // Construct download URL based on OS
-  core.info(`⬇️ Witness version ${version} not found in cache, downloading now...`);
-  
+/**
+ * Gets the latest witness version from GitHub releases
+ * @returns {Promise<string>} Latest version (e.g., "0.10.1" without 'v' prefix)
+ */
+async function getLatestVersion() {
+  try {
+    const response = await fetch('https://api.github.com/repos/in-toto/witness/releases/latest');
+    if (!response.ok) {
+      throw new Error(`GitHub API returned ${response.status}`);
+    }
+    const data = await response.json();
+    // Remove 'v' prefix if present
+    const version = data.tag_name.startsWith('v') ? data.tag_name.slice(1) : data.tag_name;
+    core.info(`Latest witness version from GitHub: ${version}`);
+    return version;
+  } catch (error) {
+    core.warning(`Failed to fetch latest witness version: ${error.message}`);
+    // Fallback to a known recent version
+    return "0.10.1";
+  }
+}
+
+/**
+ * Downloads and caches a specific witness version
+ * @param {string} version - Version to download (without 'v' prefix)
+ * @returns {Promise<string>} Path to witness executable
+ */
+async function downloadWitnessVersion(version) {
   // Determine OS-specific archive name
   let archiveFile;
   if (process.platform === "win32") {
@@ -36002,17 +36036,17 @@ async function downloadAndSetupWitness() {
   } else {
     archiveFile = `witness_${version}_linux_amd64.tar.gz`;
   }
-  
+
   const downloadUrl = `https://github.com/in-toto/witness/releases/download/v${version}/${archiveFile}`;
-  core.info(`Downloading from: ${downloadUrl}`);
-  
+  core.info(`Downloading witness from: ${downloadUrl}`);
+
   // Download the archive
   let downloadPath;
   try {
     downloadPath = await tc.downloadTool(downloadUrl);
-    core.info(`📦 Downloaded Witness archive to: ${downloadPath}`);
+    core.info(`📦 Downloaded witness archive to: ${downloadPath}`);
   } catch (error) {
-    throw new Error(`Failed to download Witness: ${error.message}`);
+    throw new Error(`Failed to download witness: ${error.message}`);
   }
 
   // Create a temporary directory for extraction
@@ -36024,34 +36058,35 @@ async function downloadAndSetupWitness() {
   let extractedDir;
   try {
     extractedDir = await tc.extractTar(downloadPath, tempDir);
-    core.info(`📤 Extracted Witness to: ${extractedDir}`);
+    core.info(`📤 Extracted witness to: ${extractedDir}`);
   } catch (error) {
-    throw new Error(`Failed to extract Witness archive: ${error.message}`);
+    throw new Error(`Failed to extract witness archive: ${error.message}`);
   }
 
   // Prepare witness executable path
   const witnessExePath = path.join(extractedDir, "witness");
   core.info(`Witness executable path: ${witnessExePath}`);
-  
+
   // Make the binary executable
   try {
     fs.chmodSync(witnessExePath, '755');
-    core.info(`✅ Made Witness executable`);
+    core.info(`✅ Made witness executable`);
   } catch (error) {
-    core.warning(`⚠️ Failed to make Witness executable: ${error.message}`);
+    core.warning(`⚠️ Failed to make witness executable: ${error.message}`);
   }
 
   // Cache the binary
+  let cachedPath;
   try {
     cachedPath = await tc.cacheFile(witnessExePath, "witness", "witness", version);
-    core.info(`✅ Cached Witness at: ${cachedPath}`);
+    core.info(`✅ Cached witness at: ${cachedPath}`);
     core.addPath(path.dirname(cachedPath));
-    core.info(`✅ Added Witness to PATH: ${path.dirname(cachedPath)}`);
+    core.info(`✅ Added witness to PATH: ${path.dirname(cachedPath)}`);
   } catch (error) {
-    throw new Error(`Failed to cache Witness: ${error.message}`);
+    throw new Error(`Failed to cache witness: ${error.message}`);
   }
 
-  // Clean up the temp directory (optional, as the runner will do this automatically)
+  // Clean up the temp directory
   try {
     await fs.promises.rm(tempDir, { recursive: true, force: true });
     core.info(`🧹 Cleaned up temporary directory`);
@@ -36062,9 +36097,54 @@ async function downloadAndSetupWitness() {
   return cachedPath.endsWith('witness') ? cachedPath : path.join(cachedPath, 'witness');
 }
 
+/**
+ * Gets the path to witness executable, checking PATH first, then cache, then downloading
+ * @returns {Promise<string>} Path to witness executable
+ */
+async function getWitnessPath() {
+  // Step 1: Check if witness is already in PATH
+  const pathWitness = await checkWitnessInPath();
+  if (pathWitness) {
+    core.info(`✅ Found witness in PATH: ${pathWitness}`);
+    return pathWitness;
+  }
+
+  // Step 2: Get version to use (from input or latest)
+  const inputVersion = core.getInput("witness_version");
+  const version = inputVersion || await getLatestVersion();
+  core.info(`Using witness version: ${version}`);
+
+  // Step 3: Check cache for this version
+  let cachedPath = tc.find("witness", version);
+  if (cachedPath) {
+    const witnessExePath = path.join(cachedPath, "witness");
+    core.info(`✅ Found cached witness at: ${witnessExePath}`);
+    core.addPath(cachedPath);
+    return witnessExePath;
+  }
+
+  // Step 4: Download and cache the version
+  core.info(`⬇️ Witness version ${version} not found in cache, downloading now...`);
+  return await downloadWitnessVersion(version);
+}
+
+/**
+ * Downloads and sets up the witness binary.
+ * DEPRECATED: Use getWitnessPath() instead
+ * Maintained for backward compatibility
+ */
+async function downloadAndSetupWitness() {
+  return await getWitnessPath();
+}
+
 module.exports = {
-  downloadAndSetupWitness
+  downloadAndSetupWitness,
+  getWitnessPath,
+  checkWitnessInPath,
+  getLatestVersion,
+  downloadWitnessVersion
 };
+
 
 /***/ }),
 
