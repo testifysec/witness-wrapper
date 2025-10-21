@@ -60,7 +60,8 @@ jobs:
 
       - name: Install witness
         run: |
-          WITNESS_VERSION=$(curl -s https://api.github.com/repos/in-toto/go-witness/releases/latest | jq -r '.tag_name')
+          # Use a specific known version
+          WITNESS_VERSION="v0.8.2"
           curl -sLo witness "https://github.com/in-toto/go-witness/releases/download/${WITNESS_VERSION}/witness_${WITNESS_VERSION#v}_linux_amd64"
           chmod +x witness
           sudo mv witness /usr/local/bin/witness
@@ -258,7 +259,8 @@ jobs:
 
       - name: Install witness
         run: |
-          WITNESS_VERSION=$(curl -s https://api.github.com/repos/in-toto/go-witness/releases/latest | jq -r '.tag_name')
+          # Use a specific known version
+          WITNESS_VERSION="v0.8.2"
           curl -sLo witness "https://github.com/in-toto/go-witness/releases/download/${WITNESS_VERSION}/witness_${WITNESS_VERSION#v}_linux_amd64"
           chmod +x witness
           sudo mv witness /usr/local/bin/witness
