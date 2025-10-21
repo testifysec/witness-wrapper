@@ -65,8 +65,9 @@ jobs:
 
       - name: Install witness
         run: |
-          # Install witness using go install (binaries no longer published after v0.1.x)
-          go install github.com/in-toto/go-witness/cmd/witness@latest
+          # Install witness CLI using go install
+          # Note: in-toto/witness is the CLI repo, in-toto/go-witness is the library
+          go install github.com/in-toto/witness@latest
           witness version
 
       - name: Generate signing key
@@ -266,8 +267,9 @@ jobs:
 
       - name: Install witness
         run: |
-          # Install witness using go install (binaries no longer published after v0.1.x)
-          go install github.com/in-toto/go-witness/cmd/witness@latest
+          # Install witness CLI using go install
+          # Note: in-toto/witness is the CLI repo, in-toto/go-witness is the library
+          go install github.com/in-toto/witness@latest
           witness version
 
       - name: Generate signing key
