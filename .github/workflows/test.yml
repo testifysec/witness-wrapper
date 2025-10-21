@@ -277,7 +277,15 @@ jobs:
 
       - name: Create test policy
         run: |
-          cat > test-policy.json << 'EOF'
+          # Extract the actual key ID from the attestation
+          KEYID=$(jq -r '.signatures[0].keyid' build.att)
+          echo "Attestation signed with key ID: $KEYID"
+
+          # Base64 encode the public key for policy
+          PUBKEY_B64=$(cat "${PUBKEY_PATH}" | base64 -w 0)
+
+          # Create policy with correct key ID and attestation order
+          cat > test-policy.json << EOF
           {
             "expires": "2030-12-31T23:59:59Z",
             "steps": {
@@ -285,26 +293,37 @@ jobs:
                 "name": "build",
                 "attestations": [
                   {
+                    "type": "https://witness.dev/attestations/material/v0.1"
+                  },
+                  {
                     "type": "https://witness.dev/attestations/command-run/v0.1"
                   },
                   {
-                    "type": "https://witness.dev/attestations/environment/v0.1"
+                    "type": "https://witness.dev/attestations/product/v0.1"
                   },
                   {
-                    "type": "https://witness.dev/attestations/product/v0.1"
+                    "type": "https://witness.dev/attestations/environment/v0.1"
                   }
                 ],
                 "functionaries": [
                   {
                     "type": "publickey",
-                    "publickeyid": "file://policykey-pub.pem"
+                    "publickeyid": "$KEYID"
                   }
                 ]
               }
             },
-            "publickeys": {}
+            "publickeys": {
+              "$KEYID": {
+                "keyid": "$KEYID",
+                "key": "$PUBKEY_B64"
+              }
+            }
           }
           EOF
+
+          echo "Created policy with key ID: $KEYID"
+          cat test-policy.json | jq .
 
       - name: Sign policy
         run: |
