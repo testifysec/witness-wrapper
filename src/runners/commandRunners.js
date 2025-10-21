@@ -124,7 +124,18 @@ async function runDirectCommandWithWitness(command, witnessOptions, witnessExePa
   // - Exit codes from failing commands
   const commandArray = ['/bin/sh', '-c', command];
   const args = assembleWitnessArgs(witnessOptions, commandArray);
-  // Command details not logged to protect secrets
+
+  // DEBUG: Log the actual witness command being executed
+  core.info('========== WITNESS COMMAND DEBUG ==========');
+  core.info(`Witness executable: ${witnessExePath}`);
+  core.info(`Witness options (step): ${witnessOptions.step}`);
+  core.info(`Witness options (outfile): ${witnessOptions.outfile}`);
+  core.info(`Complete args array (${args.length} elements):`);
+  args.forEach((arg, idx) => {
+    core.info(`  [${idx}]: ${arg}`);
+  });
+  core.info(`Full command as string: ${witnessExePath} ${args.join(' ')}`);
+  core.info('============================================');
 
   let output = "";
   await exec.exec(witnessExePath, args, {

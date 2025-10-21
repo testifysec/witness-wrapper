@@ -34270,7 +34270,18 @@ async function runJsActionWithWitness(actionDir, actionConfig, witnessOptions, w
 
   // Create absolute path for the entry file
   const args = assembleWitnessArgs(witnessOptions, ["node", entryFile]);
-  // Command details not logged to protect secrets
+
+  // DEBUG: Log the actual witness command being executed
+  core.info('========== WITNESS COMMAND DEBUG (JS Action) ==========');
+  core.info(`Witness executable: ${witnessExePath}`);
+  core.info(`Witness options (step): ${witnessOptions.step}`);
+  core.info(`Witness options (outfile): ${witnessOptions.outfile}`);
+  core.info(`Complete args array (${args.length} elements):`);
+  args.forEach((arg, idx) => {
+    core.info(`  [${idx}]: ${arg}`);
+  });
+  core.info(`Full command as string: ${witnessExePath} ${args.join(' ')}`);
+  core.info('========================================================');
 
   let output = "";
   // Use GitHub workspace as the working directory
@@ -34750,8 +34761,19 @@ async function runDockerActionWithWitness(actionDir, actionConfig, witnessOption
   
   // Construct the witness command
   const witnessArgs = assembleWitnessArgs(witnessOptions, ['docker', ...dockerRunArgs]);
-  // Command details not logged to protect secrets
-  
+
+  // DEBUG: Log the actual witness command being executed
+  core.info('========== WITNESS COMMAND DEBUG (Docker Action) ==========');
+  core.info(`Witness executable: ${witnessExePath}`);
+  core.info(`Witness options (step): ${witnessOptions.step}`);
+  core.info(`Witness options (outfile): ${witnessOptions.outfile}`);
+  core.info(`Complete args array (${witnessArgs.length} elements):`);
+  witnessArgs.forEach((arg, idx) => {
+    core.info(`  [${idx}]: ${arg}`);
+  });
+  core.info(`Full command as string: ${witnessExePath} ${witnessArgs.join(' ')}`);
+  core.info('============================================================');
+
   // Add more debug information about witness and environment
   core.debug(`Witness executable path: ${witnessExePath}`);
   core.debug(`Action directory: ${actionDir}`);
@@ -36629,7 +36651,18 @@ async function runDirectCommandWithWitness(command, witnessOptions, witnessExePa
   // - Exit codes from failing commands
   const commandArray = ['/bin/sh', '-c', command];
   const args = assembleWitnessArgs(witnessOptions, commandArray);
-  // Command details not logged to protect secrets
+
+  // DEBUG: Log the actual witness command being executed
+  core.info('========== WITNESS COMMAND DEBUG ==========');
+  core.info(`Witness executable: ${witnessExePath}`);
+  core.info(`Witness options (step): ${witnessOptions.step}`);
+  core.info(`Witness options (outfile): ${witnessOptions.outfile}`);
+  core.info(`Complete args array (${args.length} elements):`);
+  args.forEach((arg, idx) => {
+    core.info(`  [${idx}]: ${arg}`);
+  });
+  core.info(`Full command as string: ${witnessExePath} ${args.join(' ')}`);
+  core.info('============================================');
 
   let output = "";
   await exec.exec(witnessExePath, args, {
