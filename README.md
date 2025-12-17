@@ -19,7 +19,7 @@ jobs:
           step: build
           command: npm run build
         env:
-          ARCHIVISTA_HEADERS: 'Authorization: Token ${{ secrets.WITNESS_API_TOKEN }}'
+          ARCHIVISTA_HEADERS: 'Authorization: Token ${{ secrets.TESTIFYSEC_API_TOKEN }}'
 ```
 
 That's it! The action automatically:
@@ -38,14 +38,14 @@ You can wrap existing GitHub Actions to capture attestations for their execution
     action-ref: actions/checkout@v4
     attestations: 'git github environment'
   env:
-    ARCHIVISTA_HEADERS: 'Authorization: Token ${{ secrets.WITNESS_API_TOKEN }}'
+    ARCHIVISTA_HEADERS: 'Authorization: Token ${{ secrets.TESTIFYSEC_API_TOKEN }}'
 
 - uses: testifysec/witness-wrapper@main
   with:
     step: setup-node
     action-ref: actions/setup-node@v4
   env:
-    ARCHIVISTA_HEADERS: 'Authorization: Token ${{ secrets.WITNESS_API_TOKEN }}'
+    ARCHIVISTA_HEADERS: 'Authorization: Token ${{ secrets.TESTIFYSEC_API_TOKEN }}'
 ```
 
 ## Platform Defaults
@@ -76,7 +76,7 @@ Override any defaults as needed:
     fulcio: 'https://fulcio.mycompany.com'
     timestamp-servers: 'https://tsa.mycompany.com/api/v1/timestamp'
   env:
-    ARCHIVISTA_HEADERS: 'Authorization: Token ${{ secrets.WITNESS_API_TOKEN }}'
+    ARCHIVISTA_HEADERS: 'Authorization: Token ${{ secrets.TESTIFYSEC_API_TOKEN }}'
 ```
 
 ## Inputs

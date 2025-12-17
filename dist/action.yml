@@ -44,7 +44,7 @@ inputs:
   archivista-server:
     description: "URL of the Archivista server to store or retrieve attestations"
     required: false
-    default: "https://archivista.testifysec.io"
+    default: "https://archivista.platform.testifysec.com"
   
   # Attestor settings
   attestor-link-export:
@@ -78,12 +78,15 @@ inputs:
   fulcio:
     description: "Fulcio address to sign with"
     required: false
+    default: "https://fulcio.platform.testifysec.com"
   fulcio-oidc-client-id:
     description: "OIDC client ID to use for authentication"
     required: false
+    default: "sigstore"
   fulcio-oidc-issuer:
     description: "OIDC issuer to use for authentication"
     required: false
+    default: "https://token.actions.githubusercontent.com"
   fulcio-oidc-redirect-url:
     description: "OIDC redirect URL (Optional). The default oidc-redirect-url is 'http://localhost:0/auth/callback'"
     required: false
@@ -177,6 +180,7 @@ inputs:
   timestamp-servers:
     description: "Timestamp Authority Servers to use when signing envelope"
     required: false
+    default: "https://tsa.platform.testifysec.com/api/v1/timestamp"
   
   # Hash settings
   hashes:
