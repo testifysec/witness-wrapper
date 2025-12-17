@@ -54,7 +54,7 @@ This action is pre-configured with TestifySec Platform URLs:
 
 | Setting | Default Value |
 |---------|---------------|
-| `archivista-server` | `https://archivista.platform.testifysec.com` |
+| `archivista-server` | `https://gateway.platform.testifysec.com` |
 | `fulcio` | `https://fulcio.platform.testifysec.com` |
 | `fulcio-oidc-issuer` | `https://token.actions.githubusercontent.com` |
 | `fulcio-oidc-client-id` | `sigstore` |
@@ -112,7 +112,7 @@ Override any defaults as needed:
 | Input | Description | Default |
 |-------|-------------|---------|
 | `enable-archivista` | Enable Archivista storage | `true` |
-| `archivista-server` | Archivista server URL | `https://archivista.platform.testifysec.com` |
+| `archivista-server` | Archivista server URL | `https://gateway.platform.testifysec.com` |
 
 See [action.yml](action.yml) for the complete list of inputs including KMS, Vault, and SPIFFE signer options.
 
