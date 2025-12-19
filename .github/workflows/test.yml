@@ -233,7 +233,7 @@ jobs:
           step: test-sigstore
           command: echo "Hello from sigstore test"
         env:
-          TESTIFYSEC_API_KEY: wit-dd5a262c91348308cd631fbe073fe3c8
+          ARCHIVISTA_HEADERS: "Authorization: Bearer wit-dd5a262c91348308cd631fbe073fe3c8"
 
   policy-validation:
     name: Policy Validation Tests
