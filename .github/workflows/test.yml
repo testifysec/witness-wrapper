@@ -235,6 +235,142 @@ jobs:
         env:
           ARCHIVISTA_HEADERS: "Authorization: Bearer wit-dd5a262c91348308cd631fbe073fe3c8"
 
+  bypass-mode-tests:
+    name: Bypass Mode Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build action
+        run: npm run build
+
+      # Test 1: Bypass with command
+      - name: Test bypass with command
+        id: bypass-command
+        uses: ./
+        with:
+          step: bypass-test
+          command: echo "Hello from bypass mode"
+        env:
+          WITNESS_BYPASS: "true"
+
+      - name: Verify bypass command executed
+        run: |
+          # Verify no attestation file was created (bypass skips witness)
+          if ls *.att 2>/dev/null; then
+            echo "ERROR: Attestation files should not exist in bypass mode"
+            exit 1
+          fi
+          echo "✅ No attestation files created (expected in bypass mode)"
+
+      # Test 2: Bypass with multi-line command
+      - name: Test bypass with multi-line command
+        uses: ./
+        with:
+          step: bypass-multiline
+          command: |
+            echo "Line 1"
+            echo "Line 2"
+            RESULT="success"
+            echo "Result: $RESULT"
+        env:
+          WITNESS_BYPASS: "true"
+
+      - name: Verify multi-line command worked
+        run: echo "✅ Multi-line command in bypass mode passed"
+
+      # Test 3: Bypass with action-ref (local composite action)
+      - name: Create test composite action
+        run: |
+          mkdir -p .github/test-action
+          cat > .github/test-action/action.yml << 'EOF'
+          name: Test Action
+          description: Simple test action for bypass mode
+          inputs:
+            message:
+              description: Message to print
+              default: "Hello from test action"
+          runs:
+            using: composite
+            steps:
+              - run: echo "${{ inputs.message }}"
+                shell: bash
+              - run: echo "Action completed successfully"
+                shell: bash
+          EOF
+
+      - name: Test bypass with local action-ref
+        uses: ./
+        with:
+          step: bypass-action
+          action-ref: ./.github/test-action
+          input-message: "Testing bypass with action-ref"
+        env:
+          WITNESS_BYPASS: "true"
+
+      - name: Verify action bypass worked
+        run: echo "✅ Action-ref bypass mode passed"
+
+      # Test 4: Verify bypass=1 also works
+      - name: Test bypass with value 1
+        uses: ./
+        with:
+          step: bypass-one
+          command: echo "Testing WITNESS_BYPASS=1"
+        env:
+          WITNESS_BYPASS: "1"
+
+      - name: Verify bypass=1 worked
+        run: echo "✅ WITNESS_BYPASS=1 mode passed"
+
+      # Test 5: Verify normal mode still works (no bypass)
+      - name: Generate signing key for normal test
+        run: |
+          openssl genrsa -out testkey.pem 2048 2>/dev/null
+          echo "KEY_PATH=$(pwd)/testkey.pem" >> $GITHUB_ENV
+
+      - name: Install witness for normal test
+        run: |
+          LATEST_VERSION=$(curl -s https://api.github.com/repos/in-toto/witness/releases/latest | jq -r .tag_name)
+          VERSION_NO_V=${LATEST_VERSION#v}
+          curl -LO "https://github.com/in-toto/witness/releases/download/${LATEST_VERSION}/witness_${VERSION_NO_V}_linux_amd64.tar.gz"
+          tar -xzf "witness_${VERSION_NO_V}_linux_amd64.tar.gz"
+          chmod +x witness
+          sudo mv witness /usr/local/bin/
+
+      - name: Test normal mode (no bypass)
+        uses: ./
+        with:
+          step: normal-mode
+          attestations: command-run
+          enable-archivista: false
+          enable-sigstore: false
+          key: ${{ env.KEY_PATH }}
+          outfile: normal-test.att
+          command: echo "Normal mode with attestation"
+
+      - name: Verify normal mode created attestation
+        run: |
+          if [ ! -f normal-test.att ]; then
+            echo "ERROR: Attestation file should exist in normal mode"
+            exit 1
+          fi
+          echo "✅ Normal mode still creates attestations"
+
+      - name: Cleanup test action
+        if: always()
+        run: rm -rf .github/test-action
+
   policy-validation:
     name: Policy Validation Tests
     runs-on: ubuntu-latest
