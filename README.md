@@ -4,8 +4,6 @@ A GitHub Action that wraps commands with [Witness](https://github.com/in-toto/wi
 
 ## Quick Start
 
-Add attestations to your workflow with just 3 lines of configuration:
-
 ```yaml
 jobs:
   build:
@@ -13,13 +11,13 @@ jobs:
     permissions:
       id-token: write  # Required for Sigstore signing
       contents: read
+    env:
+      TESTIFYSEC_API_KEY: ${{ secrets.TESTIFYSEC_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Build with attestation
         uses: testifysec/witness-wrapper@v0.3
-        env:
-          TESTIFYSEC_API_KEY: ${{ secrets.TESTIFYSEC_API_KEY }}
         with:
           step: build
           command: npm run build
@@ -41,11 +39,13 @@ That's it! The action automatically:
 
 ### Authentication
 
-Set `TESTIFYSEC_API_KEY` as an environment variable to upload attestations to TestifySec Platform:
+Set `TESTIFYSEC_API_KEY` once at the job level:
 
 ```yaml
-env:
-  TESTIFYSEC_API_KEY: ${{ secrets.TESTIFYSEC_API_KEY }}
+jobs:
+  build:
+    env:
+      TESTIFYSEC_API_KEY: ${{ secrets.TESTIFYSEC_API_KEY }}
 ```
 
 ### Optional Inputs
@@ -76,29 +76,25 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    env:
+      TESTIFYSEC_API_KEY: ${{ secrets.TESTIFYSEC_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
         uses: testifysec/witness-wrapper@v0.3
-        env:
-          TESTIFYSEC_API_KEY: ${{ secrets.TESTIFYSEC_API_KEY }}
         with:
           step: install
           command: npm ci
 
       - name: Run tests
         uses: testifysec/witness-wrapper@v0.3
-        env:
-          TESTIFYSEC_API_KEY: ${{ secrets.TESTIFYSEC_API_KEY }}
         with:
           step: test
           command: npm test
 
       - name: Build
         uses: testifysec/witness-wrapper@v0.3
-        env:
-          TESTIFYSEC_API_KEY: ${{ secrets.TESTIFYSEC_API_KEY }}
         with:
           step: build
           command: npm run build
@@ -109,8 +105,6 @@ jobs:
 ```yaml
 - name: Setup Node with attestation
   uses: testifysec/witness-wrapper@v0.3
-  env:
-    TESTIFYSEC_API_KEY: ${{ secrets.TESTIFYSEC_API_KEY }}
   with:
     step: setup-node
     action-ref: actions/setup-node@v4
