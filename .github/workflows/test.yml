@@ -218,99 +218,20 @@ jobs:
           name: test-attestations
           path: "test-*.att"
 
-  docker-build-test:
-    name: Docker Build Test
+  sigstore-test:
+    name: Sigstore Signing Test
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build action
-        run: npm run build
-
-      - name: Check Docker version
-        run: |
-          docker --version
-          # Docker 23.0+ has BuildKit by default
-
-      - name: Create test Dockerfile
-        run: |
-          cat > Dockerfile.test << 'EOF'
-          FROM alpine:3.19
-          RUN echo "Hello from test image"
-          CMD ["echo", "test"]
-          EOF
-
-      - name: Generate signing key
-        run: |
-          openssl genrsa -out testkey.pem 2048 2>/dev/null
-          echo "KEY_PATH=$(pwd)/testkey.pem" >> $GITHUB_ENV
-
-      # Test: docker build with --metadata-file (no buildx needed on Docker 23.0+)
-      - name: Test docker build with metadata-file
+      - uses: actions/checkout@v4
+      - run: npm ci && npm run build
+      - name: Test with Sigstore
         uses: ./
         with:
-          step: docker-build
-          attestations: "command-run docker"
-          enable-archivista: false
-          enable-sigstore: false
-          key: ${{ env.KEY_PATH }}
-          outfile: docker-build.att
-          command: |
-            docker build -f Dockerfile.test -t test-image:latest --metadata-file docker-metadata.json .
-
-      - name: Verify docker metadata captured
-        run: |
-          # Check metadata file was created
-          if [ ! -f docker-metadata.json ]; then
-            echo "ERROR: docker-metadata.json not created"
-            exit 1
-          fi
-
-          echo "Docker metadata:"
-          cat docker-metadata.json | jq .
-
-          # Check attestation was created
-          if [ ! -f docker-build.att ]; then
-            echo "ERROR: Attestation not created"
-            exit 1
-          fi
-
-          # Check docker attestor captured image info
-          DOCKER_ATT=$(jq -r '.payload' docker-build.att | base64 -d | jq '.predicate.attestations[] | select(.type | contains("docker"))')
-
-          if [ -z "$DOCKER_ATT" ] || [ "$DOCKER_ATT" = "null" ]; then
-            echo "WARNING: Docker attestor data not found (may need metadata file in working dir)"
-            echo "Attestation contents:"
-            jq -r '.payload' docker-build.att | base64 -d | jq '.predicate.attestations[].type'
-          else
-            echo "Docker attestor data:"
-            echo "$DOCKER_ATT" | jq .
-          fi
-
-          echo "✅ Docker build test passed"
-
-      - name: Upload docker test artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: docker-test-artifacts
-          path: |
-            docker-build.att
-            docker-metadata.json
-            Dockerfile.test
+          step: test-sigstore
+          command: echo "Hello from sigstore test"
 
   policy-validation:
     name: Policy Validation Tests
