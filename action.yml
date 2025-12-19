@@ -1,5 +1,8 @@
-name: witness-run
-description: "Creates Attestation of CI Process with Witness"
+name: Witness Wrapper
+description: "Wrap commands with Witness to create software supply chain attestations"
+branding:
+  icon: shield
+  color: blue
 inputs:
   # Core inputs
   action-ref:
