@@ -233,7 +233,7 @@ jobs:
           step: test-sigstore
           command: echo "Hello from sigstore test"
         env:
-          TESTIFYSEC_API_KEY: ${{ secrets.TESTIFYSEC_API_KEY }}
+          TESTIFYSEC_API_KEY: ${{ secrets.TESTIFYSEC_API_TOKEN }}
 
   bypass-mode-tests:
     name: Bypass Mode Tests
