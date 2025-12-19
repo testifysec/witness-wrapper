@@ -35483,6 +35483,7 @@ function assembleWitnessArgs(witnessOptions, extraArgs = []) {
     // Archivista settings
     enableArchivista,
     archivistaServer,
+    archivistaHeaders,
     
     // Attestor settings
     exportLink,
@@ -35672,7 +35673,8 @@ function assembleWitnessArgs(witnessOptions, extraArgs = []) {
     cmd.push(`--enable-archivista=${stringValue}`);
   }
   if (archivistaServer) cmd.push(`--archivista-server=${archivistaServer}`);
-  
+  if (archivistaHeaders) cmd.push(`--archivista-headers=${archivistaHeaders}`);
+
   // Process environment variable settings
   if (envAddSensitiveKey && envAddSensitiveKey.length) {
     envAddSensitiveKey.forEach(key => {
@@ -35808,7 +35810,10 @@ function getWitnessOptions() {
     // Archivista settings
     enableArchivista: getBooleanInput("enable-archivista"),
     archivistaServer: core.getInput("archivista-server"),
-    
+    archivistaHeaders: process.env.TESTIFYSEC_API_KEY
+      ? `Authorization: Token ${process.env.TESTIFYSEC_API_KEY}`
+      : '',
+
     // Attestation settings
     attestations: splitInputToArray("attestations"),
     
@@ -36201,12 +36206,6 @@ class ActionWrapperRunner {
    */
   async setup() {
     try {
-      // Auto-populate ARCHIVISTA_HEADERS from TESTIFYSEC_API_KEY if not already set
-      if (process.env.TESTIFYSEC_API_KEY && !process.env.ARCHIVISTA_HEADERS) {
-        process.env.ARCHIVISTA_HEADERS = `Authorization: Token ${process.env.TESTIFYSEC_API_KEY}`;
-        core.info('Set ARCHIVISTA_HEADERS from TESTIFYSEC_API_KEY');
-      }
-
       // Download and set up witness binary
       this.witnessExePath = await downloadAndSetupWitness();
       core.info(`Witness executable path: ${this.witnessExePath}`);

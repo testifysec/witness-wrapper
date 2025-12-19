@@ -31,12 +31,6 @@ class ActionWrapperRunner {
    */
   async setup() {
     try {
-      // Auto-populate ARCHIVISTA_HEADERS from TESTIFYSEC_API_KEY if not already set
-      if (process.env.TESTIFYSEC_API_KEY && !process.env.ARCHIVISTA_HEADERS) {
-        process.env.ARCHIVISTA_HEADERS = `Authorization: Token ${process.env.TESTIFYSEC_API_KEY}`;
-        core.info('Set ARCHIVISTA_HEADERS from TESTIFYSEC_API_KEY');
-      }
-
       // Download and set up witness binary
       this.witnessExePath = await downloadAndSetupWitness();
       core.info(`Witness executable path: ${this.witnessExePath}`);

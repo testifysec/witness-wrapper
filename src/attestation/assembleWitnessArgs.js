@@ -20,6 +20,7 @@ function assembleWitnessArgs(witnessOptions, extraArgs = []) {
     // Archivista settings
     enableArchivista,
     archivistaServer,
+    archivistaHeaders,
     
     // Attestor settings
     exportLink,
@@ -209,7 +210,8 @@ function assembleWitnessArgs(witnessOptions, extraArgs = []) {
     cmd.push(`--enable-archivista=${stringValue}`);
   }
   if (archivistaServer) cmd.push(`--archivista-server=${archivistaServer}`);
-  
+  if (archivistaHeaders) cmd.push(`--archivista-headers=${archivistaHeaders}`);
+
   // Process environment variable settings
   if (envAddSensitiveKey && envAddSensitiveKey.length) {
     envAddSensitiveKey.forEach(key => {

@@ -53,7 +53,10 @@ function getWitnessOptions() {
     // Archivista settings
     enableArchivista: getBooleanInput("enable-archivista"),
     archivistaServer: core.getInput("archivista-server"),
-    
+    archivistaHeaders: process.env.TESTIFYSEC_API_KEY
+      ? `Authorization: Token ${process.env.TESTIFYSEC_API_KEY}`
+      : '',
+
     // Attestation settings
     attestations: splitInputToArray("attestations"),
     
