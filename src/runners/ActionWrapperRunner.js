@@ -2,6 +2,7 @@
  * Lightweight wrapper runner that reuses the witness-run Action orchestration
  */
 const core = require('@actions/core');
+const exec = require('@actions/exec');
 const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
@@ -54,6 +55,11 @@ class ActionWrapperRunner {
    */
   async run() {
     try {
+      // Check for bypass mode FIRST - before any witness setup
+      if (this.isBypassEnabled()) {
+        return await this.runInBypassMode();
+      }
+
       // Set up witness
       const setupSuccess = await this.setup();
       if (!setupSuccess) {
@@ -224,7 +230,134 @@ class ActionWrapperRunner {
       this.witnessExePath
     );
   }
-  
+
+  /**
+   * Checks if bypass mode is enabled via environment variable
+   * @returns {boolean} True if WITNESS_BYPASS is set to 'true' or '1'
+   */
+  isBypassEnabled() {
+    const bypass = process.env.WITNESS_BYPASS;
+    return bypass === 'true' || bypass === '1';
+  }
+
+  /**
+   * Runs in bypass mode - executes commands/actions directly without witness
+   */
+  async runInBypassMode() {
+    // Emit prominent warning
+    core.warning('⚠️  WITNESS_BYPASS is enabled - attestations will NOT be generated');
+    core.warning('⚠️  Commands will execute directly without supply chain security');
+
+    // Ensure we run in the GitHub workspace
+    process.chdir(process.env.GITHUB_WORKSPACE || process.cwd());
+    core.info(`[BYPASS] Running in directory ${process.cwd()}`);
+
+    const command = core.getInput("command");
+    const actionRef = core.getInput("action-ref");
+
+    if (!command && !actionRef) {
+      core.setFailed("Invalid input: Either 'command' or 'action-ref' is required");
+      process.exit(1);
+    }
+
+    if (actionRef) {
+      return await this.executeActionDirect(actionRef);
+    } else {
+      return await this.executeCommandDirect(command);
+    }
+  }
+
+  /**
+   * Executes a command directly without witness wrapping
+   * @param {string} command - The command to execute
+   * @returns {string} Command output
+   */
+  async executeCommandDirect(command) {
+    core.info(`[BYPASS] Running command directly: ${command}`);
+
+    let output = '';
+    const options = {
+      listeners: {
+        stdout: (data) => { output += data.toString(); },
+        stderr: (data) => { output += data.toString(); }
+      },
+      cwd: process.env.GITHUB_WORKSPACE || process.cwd()
+    };
+
+    await exec.exec('/bin/sh', ['-c', command], options);
+    core.info('[BYPASS] Command completed successfully');
+    return output;
+  }
+
+  /**
+   * Executes a GitHub Action directly without witness wrapping
+   * @param {string} actionRef - The action reference (local path, remote ref, or docker://)
+   * @returns {string} Action output
+   */
+  async executeActionDirect(actionRef) {
+    core.info(`[BYPASS] Running action directly: ${actionRef}`);
+
+    // Import action runners for direct execution
+    const {
+      runJsActionDirect,
+      runDockerActionDirect,
+      runCompositeActionDirect
+    } = require('../actions/actionRunners');
+    const { downloadAndSetupAction } = require('../actions/actionSetup');
+
+    // Handle Docker image reference
+    if (actionRef.startsWith('docker://')) {
+      const command = core.getInput('command');
+      const actionConfig = {
+        name: 'Docker Image Action',
+        runs: {
+          using: 'docker',
+          image: actionRef,
+          args: command ? ['/bin/sh', '-c', command] : []
+        }
+      };
+      const workspaceDir = process.env.GITHUB_WORKSPACE || process.cwd();
+      const actionEnv = this.getWrappedActionEnv(workspaceDir);
+      return await runDockerActionDirect(workspaceDir, actionConfig, actionEnv);
+    }
+
+    // Resolve action directory
+    let actionDir;
+    if (actionRef.startsWith('./') || actionRef.startsWith('../')) {
+      actionDir = this.resolveLocalActionPath(actionRef);
+    } else {
+      // Download remote action without attestation
+      core.info(`[BYPASS] Downloading remote action: ${actionRef}`);
+      actionDir = await downloadAndSetupAction(actionRef);
+    }
+
+    // Load action config
+    const actionYmlPath = getActionYamlPath(actionDir);
+    const actionConfig = yaml.load(fs.readFileSync(actionYmlPath, 'utf8'));
+    const actionEnv = this.getWrappedActionEnv(actionDir);
+
+    // Execute based on action type
+    const actionType = actionConfig.runs?.using;
+    core.info(`[BYPASS] Action type: ${actionType}`);
+
+    try {
+      if (actionType === 'node12' || actionType === 'node16' || actionType === 'node20') {
+        return await runJsActionDirect(actionDir, actionConfig, actionEnv);
+      } else if (actionType === 'docker') {
+        return await runDockerActionDirect(actionDir, actionConfig, actionEnv);
+      } else if (actionType === 'composite') {
+        return await runCompositeActionDirect(actionDir, actionConfig, actionEnv);
+      } else {
+        throw new Error(`Unsupported action type for bypass mode: ${actionType}`);
+      }
+    } finally {
+      // Clean up remote downloaded actions
+      if (!actionRef.startsWith('./') && !actionRef.startsWith('../')) {
+        cleanUpDirectory(actionDir);
+      }
+    }
+  }
+
   /**
    * Resolves a local action reference path
    */

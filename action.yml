@@ -4,6 +4,10 @@ branding:
   icon: shield
   color: blue
 inputs:
+  # Environment Variable: WITNESS_BYPASS
+  # Set to 'true' to bypass witness entirely when attestations cannot be
+  # created in the current environment. Commands/actions will execute directly.
+
   # Core inputs
   action-ref:
     description: "Reference to a GitHub Action to run (format: owner/repo@ref). If provided, command is ignored."
