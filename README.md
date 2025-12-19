@@ -4,6 +4,8 @@ A GitHub Action that wraps commands with [Witness](https://github.com/in-toto/wi
 
 ## Quick Start
 
+### Wrap a command
+
 ```yaml
 jobs:
   build:

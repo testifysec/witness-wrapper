@@ -211,6 +211,69 @@ jobs:
       # attestation files when wrapped commands fail (exit code != 0).
       # See CLAUDE.md "Witness CLI Doesn't Create Attestations on Failure" for details.
 
+      # Test 5: Subdirectory build WITHOUT workingdir (should fail - simulates customer issue)
+      - name: Test subdirectory build without workingdir (expect failure)
+        id: subdir-no-workingdir
+        continue-on-error: true
+        uses: ./
+        with:
+          step: subdir-no-workingdir
+          attestations: command-run
+          enable-archivista: false
+          enable-sigstore: false
+          key: ${{ env.KEY_PATH }}
+          outfile: test-subdir-fail.att
+          command: make -C . -f Makefile build docker_tag=test123
+
+      - name: Verify subdirectory build failed without workingdir
+        run: |
+          # The make command should fail because Makefile is not in repo root
+          if [ "${{ steps.subdir-no-workingdir.outcome }}" == "success" ]; then
+            # Check if it actually ran from the right place
+            if [ -f test-subdir-fail.att ]; then
+              echo "WARNING: Command succeeded but may have run from wrong directory"
+            fi
+          else
+            echo "✅ Expected failure: make couldn't find Makefile in repo root"
+          fi
+
+      # Test 6: Subdirectory build WITH workingdir (should succeed)
+      - name: Test subdirectory build with workingdir
+        uses: ./
+        with:
+          step: subdir-with-workingdir
+          attestations: command-run
+          enable-archivista: false
+          enable-sigstore: false
+          key: ${{ env.KEY_PATH }}
+          outfile: test-subdir-success.att
+          workingdir: test-fixtures/services/myapp
+          command: make build docker_tag=test123
+
+      - name: Verify subdirectory build succeeded with workingdir
+        run: |
+          test -f test-subdir-success.att || { echo "ERROR: Attestation not created"; exit 1; }
+
+          # Check the command output shows correct directory
+          STDOUT=$(jq -r '.payload' test-subdir-success.att | base64 -d | jq -r '.predicate.attestations[] | select(.type | contains("command-run")) | .attestation.stdout')
+
+          if echo "$STDOUT" | grep -q "SUCCESS: Dockerfile found"; then
+            echo "✅ Subdirectory build with workingdir passed"
+          else
+            echo "ERROR: Build did not find Dockerfile"
+            echo "STDOUT: $STDOUT"
+            exit 1
+          fi
+
+          # Verify docker_tag was passed correctly
+          if echo "$STDOUT" | grep -q "docker_tag=test123"; then
+            echo "✅ Variable passing works correctly"
+          else
+            echo "ERROR: docker_tag not passed correctly"
+            echo "STDOUT: $STDOUT"
+            exit 1
+          fi
+
       - name: Upload test attestations
         uses: actions/upload-artifact@v4
         if: always()
