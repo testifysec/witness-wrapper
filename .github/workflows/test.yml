@@ -233,7 +233,7 @@ jobs:
           step: test-sigstore
           command: echo "Hello from sigstore test"
         env:
-          ARCHIVISTA_HEADERS: "Authorization: Bearer wit-dd5a262c91348308cd631fbe073fe3c8"
+          TESTIFYSEC_API_KEY: ${{ secrets.TESTIFYSEC_API_KEY }}
 
   bypass-mode-tests:
     name: Bypass Mode Tests
