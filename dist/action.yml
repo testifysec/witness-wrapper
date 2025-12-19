@@ -44,7 +44,7 @@ inputs:
   archivista-server:
     description: "URL of the Archivista server to store or retrieve attestations"
     required: false
-    default: "https://gateway.platform.testifysec.com"
+    default: "https://web.platform.testifysec.com"
   
   # Attestor settings
   attestor-link-export:
