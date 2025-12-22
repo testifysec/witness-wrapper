@@ -1,6 +1,6 @@
 {
   "name": "witness-run-wrapper-action",
-  "version": "0.1.1",
+  "version": "0.3.2",
   "description": "Lightweight wrapper for running GitHub Actions with Witness-style input propagation",
   "main": "dist/index.js",
   "type": "commonjs",
