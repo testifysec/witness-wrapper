@@ -87,7 +87,8 @@ async function runJsActionWithWitness(actionDir, actionConfig, witnessOptions, w
   }
 
   // Create absolute path for the entry file
-  const args = assembleWitnessArgs(witnessOptions, ["node", entryFile]);
+  // Use process.execPath for full path to node binary (fixes custom runners without node in PATH)
+  const args = assembleWitnessArgs(witnessOptions, [process.execPath, entryFile]);
 
   // DEBUG: Log the actual witness command being executed
   core.info('========== WITNESS COMMAND DEBUG (JS Action) ==========');
@@ -695,7 +696,7 @@ async function runJsActionDirect(actionDir, actionConfig, actionEnv) {
     throw new Error(`Entry file ${entryFile} does not exist.`);
   }
 
-  core.info(`[BYPASS] Running JS action: node ${entryFile}`);
+  core.info(`[BYPASS] Running JS action: ${process.execPath} ${entryFile}`);
 
   let output = '';
   const workspaceDir = process.env.GITHUB_WORKSPACE || process.cwd();
@@ -705,7 +706,8 @@ async function runJsActionDirect(actionDir, actionConfig, actionEnv) {
   const nodePath = nodeEnv.NODE_PATH ? `${actionDir}:${nodeEnv.NODE_PATH}` : actionDir;
   nodeEnv.NODE_PATH = nodePath;
 
-  await exec.exec('node', [entryFile], {
+  // Use process.execPath for full path to node binary (fixes custom runners without node in PATH)
+  await exec.exec(process.execPath, [entryFile], {
     cwd: workspaceDir,
     env: nodeEnv,
     listeners: {
