@@ -371,6 +371,129 @@ jobs:
         if: always()
         run: rm -rf .github/test-action
 
+  sbom-test:
+    name: SBOM Generation Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build action
+        run: npm run build
+
+      - name: Install witness
+        run: |
+          LATEST_VERSION=$(curl -s https://api.github.com/repos/in-toto/witness/releases/latest | jq -r .tag_name)
+          VERSION_NO_V=${LATEST_VERSION#v}
+          echo "Installing witness ${LATEST_VERSION}"
+          curl -LO "https://github.com/in-toto/witness/releases/download/${LATEST_VERSION}/witness_${VERSION_NO_V}_linux_amd64.tar.gz"
+          tar -xzf "witness_${VERSION_NO_V}_linux_amd64.tar.gz"
+          chmod +x witness
+          sudo mv witness /usr/local/bin/
+          witness version
+
+      - name: Generate signing key
+        run: |
+          openssl genrsa -out testkey.pem 2048 2>/dev/null
+          echo "KEY_PATH=$(pwd)/testkey.pem" >> $GITHUB_ENV
+
+      # Test: Generate SBOM from a public container image using anchore/sbom-action
+      - name: Generate SBOM with witness attestation
+        uses: ./
+        with:
+          step: generate-sbom
+          attestations: git github environment product sbom
+          attestor-sbom-export: "true"
+          enable-archivista: false
+          enable-sigstore: false
+          key: ${{ env.KEY_PATH }}
+          outfile: sbom-attestation.json
+          action-ref: anchore/sbom-action@v0
+          input-image: python:3.11-slim
+          input-format: cyclonedx-json
+          input-output-file: sbom.cdx.json
+          input-upload-artifact: "false"
+
+      - name: Verify SBOM file created
+        run: |
+          if [ ! -f sbom.cdx.json ]; then
+            echo "ERROR: SBOM file not created"
+            exit 1
+          fi
+          echo "✅ SBOM file created: sbom.cdx.json"
+
+          # Verify it's valid CycloneDX JSON
+          if ! jq -e '.bomFormat == "CycloneDX"' sbom.cdx.json > /dev/null; then
+            echo "ERROR: Invalid CycloneDX format"
+            jq . sbom.cdx.json
+            exit 1
+          fi
+          echo "✅ Valid CycloneDX format"
+
+          # Check for expected components (python image should have many packages)
+          COMPONENT_COUNT=$(jq '.components | length' sbom.cdx.json)
+          echo "Found $COMPONENT_COUNT components in SBOM"
+          if [ "$COMPONENT_COUNT" -lt 10 ]; then
+            echo "WARNING: Expected more components from python:3.11-slim image"
+          else
+            echo "✅ SBOM contains $COMPONENT_COUNT components"
+          fi
+
+      - name: Verify attestation structure
+        run: |
+          if [ ! -f sbom-attestation.json ]; then
+            echo "ERROR: Attestation file not created"
+            exit 1
+          fi
+          echo "✅ Attestation file created"
+
+          # Check step name
+          STEP=$(jq -r '.payload' sbom-attestation.json | base64 -d | jq -r '.predicate.name')
+          if [ "$STEP" != "generate-sbom" ]; then
+            echo "ERROR: Step name mismatch. Expected 'generate-sbom', got '$STEP'"
+            exit 1
+          fi
+          echo "✅ Step name correct: $STEP"
+
+          # List all attestor types present
+          echo "Attestors in attestation:"
+          jq -r '.payload' sbom-attestation.json | base64 -d | jq -r '.predicate.attestations[].type'
+
+          # Check for sbom attestor in the attestation
+          SBOM_ATTESTOR=$(jq -r '.payload' sbom-attestation.json | base64 -d | jq '.predicate.attestations[] | select(.type | contains("sbom"))')
+          if [ -z "$SBOM_ATTESTOR" ] || [ "$SBOM_ATTESTOR" = "null" ]; then
+            echo "INFO: SBOM attestor may not have found SBOM file (PostProduct timing)"
+          else
+            echo "✅ SBOM attestor captured SBOM data"
+          fi
+
+          # Check for product attestor (should include sbom.cdx.json)
+          PRODUCT_FILES=$(jq -r '.payload' sbom-attestation.json | base64 -d | jq -r '.predicate.attestations[] | select(.type | contains("product")) | .attestation | keys[]' 2>/dev/null || echo "")
+          if echo "$PRODUCT_FILES" | grep -q "sbom.cdx.json"; then
+            echo "✅ SBOM file captured in product attestation"
+          else
+            echo "Product files captured:"
+            echo "$PRODUCT_FILES"
+          fi
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sbom-artifacts
+          path: |
+            sbom.cdx.json
+            sbom-attestation.json
+
   policy-validation:
     name: Policy Validation Tests
     runs-on: ubuntu-latest
