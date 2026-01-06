@@ -38,7 +38,25 @@ class ActionWrapperRunner {
       
       // Build witness options from inputs
       this.witnessOptions = getWitnessOptions();
-      
+
+      // Check if we're being called from a subdirectory without explicit workingdir
+      const initialCwd = process.cwd();
+      const workspaceDir = process.env.GITHUB_WORKSPACE;
+      const explicitWorkingDir = core.getInput('workingdir');
+
+      if (workspaceDir && initialCwd !== workspaceDir && !explicitWorkingDir) {
+        const relativePath = initialCwd.replace(workspaceDir, '').replace(/^\//, '');
+        core.warning(
+          `Working directory mismatch detected!\n` +
+          `  Current directory: ${initialCwd}\n` +
+          `  GITHUB_WORKSPACE: ${workspaceDir}\n` +
+          `  Witness will run from GITHUB_WORKSPACE by default.\n` +
+          `  If your Dockerfile/Makefile is in a subdirectory, add:\n` +
+          `    workingdir: ${relativePath || '.'}\n` +
+          `  to your witness-wrapper step inputs.`
+        );
+      }
+
       // Ensure we run in the GitHub workspace
       process.chdir(process.env.GITHUB_WORKSPACE || process.cwd());
       core.info(`Running in directory ${process.cwd()}`);
